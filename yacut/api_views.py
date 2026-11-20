@@ -23,30 +23,44 @@ def create_url():
     if 'url' not in data:
         raise InvalidAPIUsage('"url" является обязательным полем!')
 
-    original_url = data['url'].strip()
+    original_url = data['url']
+    if not isinstance(original_url, str):
+        raise InvalidAPIUsage('"url" является обязательным полем!')
+    original_url = original_url.strip()
+
     custom_id = data.get('custom_id')
 
-    # Если ключ custom_id есть в запросе
-    if 'custom_id' in data:
-        # Проверяем, что это строка и она не пустая
-        if not isinstance(custom_id, str) or not custom_id.strip():
+    # Если поле custom_id передано и это НЕ пустая строка
+    if custom_id is not None and custom_id != '':
+
+        # 1. Сначала проверяем, что это строка (защита от int, list, null)
+        if not isinstance(custom_id, str):
             raise InvalidAPIUsage(
                 'Указано недопустимое имя для короткой ссылки'
             )
 
         custom_id = custom_id.strip()
 
-        if len(custom_id) > 16 or not re.match(r'^[a-zA-Z0-9_-]+$', custom_id):
-            raise InvalidAPIUsage(
-                'Указано недопустимое имя для короткой ссылки'
-            )
+        # 2. Если после очистки от пробелов строка стала пустой — генерируем
+        if not custom_id:
+            custom_id = get_unique_short_id()
+        else:
+            # 3. Проверяем длину и недопустимые символы
+            if len(custom_id) > 16 or not re.match(
+                r'^[a-zA-Z0-9_-]+$', custom_id
+            ):
+                raise InvalidAPIUsage(
+                    'Указано недопустимое имя для короткой ссылки'
+                )
 
-        existing = URLMap.query.filter_by(short=custom_id).first()
-        if custom_id == 'files' or existing:
-            raise InvalidAPIUsage(
-                'Предложенный вариант короткой ссылки уже существует.'
-            )
+            # 4. Проверяем на занятость
+            existing = URLMap.query.filter_by(short=custom_id).first()
+            if custom_id == 'files' or existing:
+                raise InvalidAPIUsage(
+                    'Предложенный вариант короткой ссылки уже существует.'
+                )
     else:
+        # Если ключа нет или он равен "" — генерируем автоматически
         custom_id = get_unique_short_id()
 
     urlmap = URLMap(
