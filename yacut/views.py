@@ -31,14 +31,25 @@ async def upload_file_to_yandex_disk(file, session):
     async with session.put(upload_href, data=file.read()) as response:
         response.raise_for_status()
 
-    # API метод: GET /v1/disk/resources?path=...
+    # 2. Публикация файла (ответ не используем, просто проверяем статус)
+    publish_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources/publish"
+    async with session.put(publish_url, headers=headers, params={'path': disk_path}) as resp:
+        resp.raise_for_status()
+
+    # 3. Получение метаданных ресурса, чтобы забрать public_url
     meta_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources"
-    async with session.get(
-        meta_url, headers=headers, params={'path': disk_path}
-    ) as response:
-        response.raise_for_status()
-        meta = await response.json()
-        return meta['file']  # Прямая ссылка на скачивание файла
+    async with session.get(meta_url, headers=headers, params={'path': disk_path}) as resp:
+        resp.raise_for_status()
+        meta = await resp.json()
+        public_url = meta['public_url']  # Это и есть публичная ссылка на файл
+
+    # 4. Получение прямой ссылки для скачивания по public_url
+    meta_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources"
+    async with session.get(meta_url, headers=headers, params={'path': disk_path}) as resp:
+        resp.raise_for_status()
+        meta = await resp.json()
+        # Возвращаем постоянную публичную ссылку
+        return meta['public_url']
 
 
 async def async_upload_files(files):
@@ -107,10 +118,11 @@ def files_view():
         try:
             yandex_download_urls = asyncio.run(async_upload_files(files))
 
-            for file, download_url in zip(files, yandex_download_urls):
+            for file, public_url in zip(files, yandex_download_urls):
                 short_id = get_unique_short_id()
+                original_url = f"{public_url}?download=1"
                 urlmap = URLMap(
-                    original=download_url,
+                    original=original_url,
                     short=short_id
                 )
                 db.session.add(urlmap)
