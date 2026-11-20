@@ -80,7 +80,7 @@ def index_view():
             # Если пользователь не ввел, генерируем
             custom_id = get_unique_short_id()
         urlmap = URLMap(
-            original=form.original_link.data,
+            original=form.original_link.data.strip(),
             short=custom_id
         )
         db.session.add(urlmap)
