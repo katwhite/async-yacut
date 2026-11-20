@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, URLField
-from flask_wtf.file import FileAllowed, MultipleFileField
+from flask_wtf.file import FileRequired, MultipleFileField
 from wtforms.validators import DataRequired, Length, Optional
 
 
@@ -20,5 +20,7 @@ class URLMapForm(FlaskForm):
 
 
 class FileForm(FlaskForm):
-    files = MultipleFileField()
+    files = MultipleFileField(
+        validators=[FileRequired(message='Выберите хотя бы один файл')]
+    )
     submit = SubmitField('Загрузить')

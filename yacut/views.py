@@ -1,11 +1,53 @@
-from random import choices, randrange
+import asyncio
+import os
+from random import choices
 import string
 
-from flask import abort, flash, redirect, render_template, url_for
+import aiohttp
+from flask import flash, redirect, render_template, url_for
 
 from . import app, db
 from .forms import FileForm, URLMapForm
 from .models import URLMap
+
+
+async def upload_file_to_yandex_disk(file, session):
+    """Загружает файл на ЯДиск и возвращает прямую ссылку на скачивание"""
+    # Уникальное имя для файла на диске, чтобы не перезаписывать чужие файлы
+    disk_filename = f"{os.urandom(8).hex()}_{file.filename}"
+    disk_path = f"app:/{disk_filename}"
+
+    upload_url = app.config['REQUEST_UPLOAD_URL']
+    headers = app.config['AUTH_HEADERS']
+    params = {'path': disk_path, 'overwrite': 'True'}
+
+    async with session.get(
+        upload_url, headers=headers, params=params
+    ) as response:
+        response.raise_for_status()
+        data = await response.json()
+        upload_href = data['href']
+
+    async with session.put(upload_href, data=file.read()) as response:
+        response.raise_for_status()
+
+    # API метод: GET /v1/disk/resources?path=...
+    meta_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources"
+    async with session.get(
+        meta_url, headers=headers, params={'path': disk_path}
+    ) as response:
+        response.raise_for_status()
+        meta = await response.json()
+        return meta['file']  # Прямая ссылка на скачивание файла
+
+
+async def async_upload_files(files):
+    """Асинхронно загружает список файлов и возвращает список ссылок"""
+    results = []
+    async with aiohttp.ClientSession() as session:
+        tasks = [upload_file_to_yandex_disk(file, session) for file in files]
+        results = await asyncio.gather(*tasks)
+    return results
 
 
 def get_unique_short_id():
@@ -55,44 +97,30 @@ def redirect_view(short_id):
     return redirect(urlmap.original)
 
 
-@app.route('/files')
+@app.route('/files', methods=['GET', 'POST'])
 def files_view():
     form = FileForm()
-    short_links = None
+    short_links = []
 
     if form.validate_on_submit():
-        custom_id = get_unique_short_id()
-        # здесь будет загрузка на Ядиск:
-        payload = {
-            # Загрузить файл с названием filename.txt в папку приложения.
-            'path': f'app:/filename.txt',  
-            'overwrite': 'True'  # Если файл существует, перезаписать его.
-        }
-        response = requests.get(
-            headers=AUTH_HEADERS,  # Заголовок для авторизации.
-            params=payload,  # Указать параметры.
-            url=REQUEST_UPLOAD_URL
-        )
-        upload_url = response.json()['href']
-        with open('filename.txt', 'rb') as file:
-            response = requests.put(
-                data=file,
-                url=upload_url,
-            )
+        files = form.files.data
+        try:
+            yandex_download_urls = asyncio.run(async_upload_files(files))
 
-        # Расположение файла находится в заголовке Location.
-        location = response.headers['Location']
-        # Декодировать строку при помощи модуля urllib.
-        location = urllib.parse.unquote(location)
-        # Убрать первую часть расположения файла /disk, 
-        # она не понадобится.
-        location = location.replace('/disk', '')
-        urlmap = URLMap(
-            original=location,  # тут должна получиться ссылка на яндекс диск
-            short=custom_id
-        )
-        db.session.add(urlmap)
-        db.session.commit()
-        # это наверное должен быть словарь типа имя файла: ссылка
-        short_links = url_for('redirect_view', short_id=custom_id, _external=True)
+            for file, download_url in zip(files, yandex_download_urls):
+                short_id = get_unique_short_id()
+                urlmap = URLMap(
+                    original=download_url,
+                    short=short_id
+                )
+                db.session.add(urlmap)
+                short_links.append((
+                    file.filename,
+                    url_for('redirect_view', short_id=short_id, _external=True)
+                ))
+            db.session.commit()
+        except Exception as e:
+            flash(f'Ошибка при загрузке на Яндекс.Диск: {e}')
+            db.session.rollback()
+            return render_template('add_files.html', form=form)
     return render_template('add_files.html', form=form, short_links=short_links)
