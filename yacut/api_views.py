@@ -57,7 +57,7 @@ def create_url():
 
             # 4. Проверяем на занятость
             existing = URLMap.check_unique(custom_id)
-            if custom_id == 'files' or existing:
+            if custom_id == 'files' or not existing:
                 raise InvalidAPIUsage(
                     'Предложенный вариант короткой ссылки уже существует.'
                 )
