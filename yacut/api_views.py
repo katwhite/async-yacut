@@ -1,6 +1,6 @@
 from http import HTTPStatus
 import re
-from flask import jsonify, request, url_for
+from flask import jsonify, request
 
 from yacut.constants import MAX_LENGTH_SHORT, SHORT_ID_PATTERN
 from .error_handlers import InvalidAPIUsage
