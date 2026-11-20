@@ -22,7 +22,9 @@ async def upload_file_to_yandex_disk(file, session):
     upload_url = app.config['REQUEST_UPLOAD_URL']
     params = {'path': disk_path, 'overwrite': 'True'}
 
-    async with session.get(upload_url, headers=headers, params=params) as response:
+    async with session.get(
+        upload_url, headers=headers, params=params
+    ) as response:
         response.raise_for_status()
         data = await response.json()
         upload_href = data['href']
@@ -32,10 +34,13 @@ async def upload_file_to_yandex_disk(file, session):
         response.raise_for_status()
 
     # 3. Получение ссылки на скачивание (строго по инструкции)
-    download_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources/download"
+    download_url = (
+        f"{app.config['API_HOST']}"
+        f"{app.config['API_VERSION']}/disk/resources/download"
+    )
     async with session.get(
-        download_url, 
-        headers=headers, 
+        download_url,
+        headers=headers,
         params={'path': disk_path}
     ) as response:
         response.raise_for_status()
@@ -70,10 +75,15 @@ def index_view():
     short_link = None
 
     if form.validate_on_submit():
-        custom_id = form.custom_id.data.strip() if form.custom_id.data else None
+        custom_id = None
+        if form.custom_id.data:
+            custom_id = form.custom_id.data.strip()
         if custom_id:
             # Проверка на занятость и на служебный адрес
-            if custom_id == 'files' or URLMap.query.filter_by(short=custom_id).first():
+            if (
+                custom_id == 'files'
+                or URLMap.query.filter_by(short=custom_id).first()
+            ):
                 flash('Предложенный вариант короткой ссылки уже существует.')
                 return render_template('index.html', form=form)
         else:
@@ -86,9 +96,10 @@ def index_view():
         db.session.add(urlmap)
         db.session.commit()
 
-        short_link = url_for('redirect_view', short_id=custom_id, _external=True)
-        # пока непонятно куда будем редиректить
-        # return redirect(url_for('opinion_view', id=opinion.id))
+        short_link = url_for(
+            'redirect_view', short_id=custom_id, _external=True
+        )
+
     return render_template('index.html', form=form, short_link=short_link)
 
 
@@ -127,4 +138,6 @@ def files_view():
             flash(f'Ошибка при загрузке на Яндекс.Диск: {e}')
             db.session.rollback()
             return render_template('add_files.html', form=form)
-    return render_template('add_files.html', form=form, short_links=short_links)
+    return render_template(
+        'add_files.html', form=form, short_links=short_links
+    )
