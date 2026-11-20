@@ -16,40 +16,31 @@ async def upload_file_to_yandex_disk(file, session):
     # Уникальное имя для файла на диске, чтобы не перезаписывать чужие файлы
     disk_filename = f"{os.urandom(8).hex()}_{file.filename}"
     disk_path = f"app:/{disk_filename}"
-
-    upload_url = app.config['REQUEST_UPLOAD_URL']
     headers = app.config['AUTH_HEADERS']
+
+    # 1. Запрос URL для загрузки файла
+    upload_url = app.config['REQUEST_UPLOAD_URL']
     params = {'path': disk_path, 'overwrite': 'True'}
 
-    async with session.get(
-        upload_url, headers=headers, params=params
-    ) as response:
+    async with session.get(upload_url, headers=headers, params=params) as response:
         response.raise_for_status()
         data = await response.json()
         upload_href = data['href']
 
+    # 2. Загрузка файла по полученному URL
     async with session.put(upload_href, data=file.read()) as response:
         response.raise_for_status()
 
-    # 2. Публикация файла (ответ не используем, просто проверяем статус)
-    publish_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources/publish"
-    async with session.put(publish_url, headers=headers, params={'path': disk_path}) as resp:
-        resp.raise_for_status()
-
-    # 3. Получение метаданных ресурса, чтобы забрать public_url
-    meta_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources"
-    async with session.get(meta_url, headers=headers, params={'path': disk_path}) as resp:
-        resp.raise_for_status()
-        meta = await resp.json()
-        public_url = meta['public_url']  # Это и есть публичная ссылка на файл
-
-    # 4. Получение прямой ссылки для скачивания по public_url
-    meta_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources"
-    async with session.get(meta_url, headers=headers, params={'path': disk_path}) as resp:
-        resp.raise_for_status()
-        meta = await resp.json()
-        # Возвращаем постоянную публичную ссылку
-        return meta['public_url']
+    # 3. Получение ссылки на скачивание (строго по инструкции)
+    download_url = f"{app.config['API_HOST']}{app.config['API_VERSION']}/disk/resources/download"
+    async with session.get(
+        download_url, 
+        headers=headers, 
+        params={'path': disk_path}
+    ) as response:
+        response.raise_for_status()
+        data = await response.json()
+        return data['href']  # Возвращаем прямую ссылку на скачивание
 
 
 async def async_upload_files(files):
@@ -116,13 +107,14 @@ def files_view():
     if form.validate_on_submit():
         files = form.files.data
         try:
+            # Получаем список прямых ссылок на скачивание
             yandex_download_urls = asyncio.run(async_upload_files(files))
 
-            for file, public_url in zip(files, yandex_download_urls):
+            for file, download_url in zip(files, yandex_download_urls):
                 short_id = get_unique_short_id()
-                original_url = f"{public_url}?download=1"
+
                 urlmap = URLMap(
-                    original=original_url,
+                    original=download_url,
                     short=short_id
                 )
                 db.session.add(urlmap)
