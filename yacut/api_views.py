@@ -47,7 +47,7 @@ def create_url():
         else:
             # 3. Проверяем длину и недопустимые символы
             if len(custom_id) > 16 or not re.match(
-                r'^[a-zA-Z0-9_-]+$', custom_id
+                r'^[a-zA-Z0-9]+$', custom_id
             ):
                 raise InvalidAPIUsage(
                     'Указано недопустимое имя для короткой ссылки'
