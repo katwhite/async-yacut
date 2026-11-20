@@ -24,10 +24,16 @@ def create_url():
         raise InvalidAPIUsage('"url" является обязательным полем!')
 
     original_url = data['url'].strip()
-
     custom_id = data.get('custom_id')
 
-    if custom_id:
+    # Если ключ custom_id есть в запросе
+    if 'custom_id' in data:
+        # Проверяем, что это строка и она не пустая
+        if not isinstance(custom_id, str) or not custom_id.strip():
+            raise InvalidAPIUsage(
+                'Указано недопустимое имя для короткой ссылки'
+            )
+
         custom_id = custom_id.strip()
 
         if len(custom_id) > 16 or not re.match(r'^[a-zA-Z0-9_-]+$', custom_id):
@@ -35,10 +41,8 @@ def create_url():
                 'Указано недопустимое имя для короткой ссылки'
             )
 
-        if (
-            custom_id == 'files'
-            or URLMap.query.filter_by(short=custom_id).first()
-        ):
+        existing = URLMap.query.filter_by(short=custom_id).first()
+        if custom_id == 'files' or existing:
             raise InvalidAPIUsage(
                 'Предложенный вариант короткой ссылки уже существует.'
             )
@@ -53,7 +57,9 @@ def create_url():
     db.session.commit()
 
     short_link = url_for(
-        'redirect_view', short_id=urlmap.short, _external=True
+        'redirect_view',
+        short_id=urlmap.short,
+        _external=True
     )
 
     return jsonify({
