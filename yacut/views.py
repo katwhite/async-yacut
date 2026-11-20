@@ -1,7 +1,5 @@
 import asyncio
 import os
-from random import choices
-import string
 
 import aiohttp
 from flask import flash, redirect, render_template, url_for
@@ -57,18 +55,6 @@ async def async_upload_files(files):
     return results
 
 
-def get_unique_short_id():
-    """Формирует короткие идентификаторы переменной длины"""
-    # Буквы + цифры
-    characters = string.ascii_letters + string.digits
-    while True:
-        # Генерируем 6 случайных символов
-        short_id = ''.join(choices(characters, k=6))
-        # Проверяем в БД
-        if not URLMap.query.filter_by(short=short_id).first():
-            return short_id
-
-
 @app.route('/', methods=['GET', 'POST'])
 def index_view():
     form = URLMapForm()
@@ -82,13 +68,13 @@ def index_view():
             # Проверка на занятость и на служебный адрес
             if (
                 custom_id == 'files'
-                or URLMap.query.filter_by(short=custom_id).first()
+                or not URLMap.check_unique(custom_id)
             ):
                 flash('Предложенный вариант короткой ссылки уже существует.')
                 return render_template('index.html', form=form)
         else:
             # Если пользователь не ввел, генерируем
-            custom_id = get_unique_short_id()
+            custom_id = URLMap.get_unique_short_id()
         urlmap = URLMap(
             original=form.original_link.data.strip(),
             short=custom_id
@@ -122,7 +108,7 @@ def files_view():
             yandex_download_urls = asyncio.run(async_upload_files(files))
 
             for file, download_url in zip(files, yandex_download_urls):
-                short_id = get_unique_short_id()
+                short_id = URLMap.get_unique_short_id()
 
                 urlmap = URLMap(
                     original=download_url,

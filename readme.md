@@ -1,60 +1,33 @@
-### Как запустить проект Yacut:
+# Проект YaCut
 
-Клонировать репозиторий и перейти в него в командной строке:
+Сервис для созданию коротких ссылок и асинхронной загрузке файлов на Яндекс.Диск.
 
-```
-git clone 
-```
+## Стек технологий
+- Python 3.9+
+- Flask
+- Flask-SQLAlchemy
+- Flask-Migrate
+- aiohttp
+- WTForms
 
-```
-cd yacut
-```
+## Развертывание проекта
+1. Клонировать репозиторий и перейти в него:
+   `git clone <ссылка> && cd async-yacut`
+2. Создать и активировать виртуальное окружение:
+   `python -m venv venv` (и активировать).
+3. Установить зависимости:
+   `pip install -r requirements.txt`
+4. Создать файл `.env` в корне проекта:
+   ```env
+   FLASK_APP=yacut
+   FLASK_ENV=development
+   SECRET_KEY=your_secret_key
+   DATABASE_URI=sqlite:///db.sqlite3
+   DISK_TOKEN=ваш_токен_яндекс_диска
+5. Создать базу данных и применить миграции:
+   `flask db upgrade`
+6. Запустить проект:
+   `flask run`
 
-Cоздать и активировать виртуальное окружение:
-
-```
-python3 -m venv venv
-```
-
-* Если у вас Linux/macOS
-
-    ```
-    source venv/bin/activate
-    ```
-
-* Если у вас windows
-
-    ```
-    source venv/scripts/activate
-    ```
-
-Установить зависимости из файла requirements.txt:
-
-```
-python3 -m pip install --upgrade pip
-```
-
-```
-pip install -r requirements.txt
-```
-
-Создать в директории проекта файл .env с четыремя переменными окружения:
-
-```
-FLASK_APP=yacut
-FLASK_ENV=development
-SECRET_KEY=your_secret_key
-DB=sqlite:///db.sqlite3
-```
-
-Создать базу данных и применить миграции:
-
-```
-flask db upgrade
-```
-
-Запустить проект:
-
-```
-flask run
-```
+## Автор
+Пименова Екатерина
